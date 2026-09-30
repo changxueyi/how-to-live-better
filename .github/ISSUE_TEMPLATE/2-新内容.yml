@@ -1,0 +1,28 @@
+name: 建议补充内容
+description: 书里还没写到、你觉得值得加的主题
+labels: ["新内容"]
+body:
+  - type: markdown
+    attributes:
+      value: 这本书只收能回答「花掉什么、换回什么」的建议，来源只引期刊论文和官方文件。翻译请在自己的 fork 维护，不合进本仓库，README 顶部可以加链接。
+  - type: input
+    id: topic
+    attributes:
+      label: 主题
+      placeholder: 比如：职称怎么评
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: 想让书回答什么问题
+      description: 写具体一点，比如「该去哪个机构、要准备什么材料」。
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: 你知道的来源（可选）
+      description: 论文、法规、官方文件的链接。
+    validations:
+      required: false

@@ -1,0 +1,27 @@
+name: 纠错：条目写错了或过时了
+description: 数字不对、法规改了、来源打不开、说法有误
+title: "第 X 节第 Y 条："
+labels: ["纠错"]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: 哪一条
+      description: 写节号和条号，比如「第 32 节第 2 条」。
+      placeholder: 第 X 节第 Y 条
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 哪里不对
+      description: 把原文那句抄过来，再说应该是什么。
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: 依据
+      description: 期刊论文（DOI 或 PubMed 链接）、法条原文、政府或官方机构网页。知乎、公众号、百家号这类转述用不了。
+    validations:
+      required: true

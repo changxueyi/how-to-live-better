@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://changxueyi.github.io/how-to-live-better/sitemap.xml
