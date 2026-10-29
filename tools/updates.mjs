@@ -20,6 +20,7 @@ import { ROOT } from './lib/book.mjs';
 
 const CHECK = process.argv.includes('--check');
 const SINCE = '2026-10-01';
+const REF = process.env.UPDATES_REF || 'HEAD';
 const OUT = 'updates.json';
 const FIELDS = ['标题', '成本', '说人话', '收益', '证据等级', '备注'];
 
@@ -126,10 +127,10 @@ let SEQ = 0;
 
 // ---------- 取历史 ----------
 const sinceTs = Math.floor(new Date(`${SINCE}T00:00:00+08:00`).getTime() / 1000);
-const base = git(['rev-list', '-1', '--first-parent', `--before=${sinceTs}`, 'HEAD']).toString().trim();
-if (!base) throw new Error(`找不到 ${SINCE} 之前的提交。CI 上 checkout 要加 fetch-depth: 0`);
+const base = git(['rev-list', '-1', '--first-parent', `--before=${sinceTs}`, REF]).toString().trim();
+if (!base) throw new Error(`找不到 ${SINCE} 之前的提交。请检查 ${REF} 是否包含完整历史`);
 const log = git(['log', '--first-parent', '--reverse', '--diff-merges=first-parent', '--name-only',
-  '--format=@%H %ct', `${base}..HEAD`, '--', 'book/']).toString();
+  '--format=@%H %ct', `${base}..${REF}`, '--', 'book/']).toString();
 const commits = [];
 for (const line of log.split('\n')) {
   if (line.startsWith('@')) { const [h, t] = line.slice(1).split(' '); commits.push({ h, date: day(Number(t)), files: [] }); continue; }

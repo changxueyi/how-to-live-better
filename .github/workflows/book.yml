@@ -94,8 +94,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Fetch source history for update dates
+        run: |
+          git remote add upstream https://github.com/eternity4719/HowToLiveBetter.git
+          git fetch --no-tags upstream main
       - run: node tools/sync-stats.mjs --check
-      - run: node tools/updates.mjs --check
+      - run: UPDATES_REF=upstream/main node tools/updates.mjs --check
 
   selfcheck:
     name: 自查条件检查
