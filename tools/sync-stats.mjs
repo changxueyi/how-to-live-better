@@ -1,6 +1,6 @@
 // 统计对齐：改完条目跑一次。按顺序做四件事：
 // ① 重算全书的统计数字，回写 README.md、index.html、tools/og.html；
-// ② 调 check-refs.mjs 重算 docs/引用对照.md；
+// ② 调 check-refs.mjs 重算 docs/引用对照.md，调 updates.mjs 重算 updates.json；
 // ③ 调 check-plain.mjs 查说人话，不合格只提示不中断；
 // ④ 用无头 Chrome 把 tools/og.html 重新截成 og.png。
 //
@@ -18,41 +18,34 @@
 // 数字口径：条目数 = book/*.md 里的 ### 标题数；节数 = book/*.md 的文件数；
 // A/B/C = 证据等级行的首字母（带（争议）后缀的照样算）；争议 = 备注以「争议」开头的条数；
 // TODO = 正文里含「待核实」或「TODO」的行数；链接 = 「- 来源：」和「- 备注：」行里的 http(s) 总数；
-// 性价比三档的规则抄自 index.html。
+// 性价比三档的规则在 tools/lib/book.mjs，抄自 index.html。
 // 切行用 /\r?\n/，理由见 check-refs.mjs 文件头。
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { COST_W as W, ratioOf } from './lib/book.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CHECK = process.argv.includes('--check');
 const read = f => readFileSync(join(ROOT, f), 'utf8');
 
-// 档位规则和 index.html 的 COST_W、e.ratio 两行一致；那两行改了这里必须跟着改，所以先比对一次
+// 档位规则（tools/lib/book.mjs）和 index.html 的 COST_W、e.ratio 两行一致；那两行改了那边必须跟着改，所以先比对一次
 const indexText = read('index.html');
 const COST_W_LINE = "const COST_W = { money:{'0':0,'少':1,'多':2}, time:{'少':0,'中':1,'多':2}, will:{'否':0,'些':1,'是':2} };";
 const RATIO_LINE = "e.ratio = e.level === '大' ? (e.cs === 0 ? '极高' : (e.cs <= 2 ? '高' : '一般'))";
-if (!indexText.includes(COST_W_LINE)) throw new Error('index.html 的 COST_W 行变了，请同步本脚本里的成本权重');
-if (!indexText.includes(RATIO_LINE)) throw new Error('index.html 的 e.ratio 行变了，请同步本脚本里的档位规则');
-
-const W = {
-  money: { '0': 0, '少': 1, '多': 2 },
-  time: { '少': 0, '中': 1, '多': 2 },
-  will: { '否': 0, '些': 1, '是': 2 },
-};
-
-function ratioOf(cost, level) {
-  if (level === '大') return cost === 0 ? '极高' : cost <= 2 ? '高' : '一般';
-  return level === '中' && cost === 0 ? '高' : '一般';
-}
+if (!indexText.includes(COST_W_LINE)) throw new Error('index.html 的 COST_W 行变了，请同步 tools/lib/book.mjs 里的成本权重');
+if (!indexText.includes(RATIO_LINE)) throw new Error('index.html 的 e.ratio 行变了，请同步 tools/lib/book.mjs 里的档位规则');
 
 const bookFiles = readdirSync(join(ROOT, 'book')).filter(f => f.endsWith('.md')).sort();
 const sections = bookFiles.length;
 let entries = 0, dispute = 0, todo = 0, links = 0;
 const grade = { A: 0, B: 0, C: 0 };
 const ratio = { '极高': 0, '高': 0, '一般': 0 };
+// 成本标签里「人群=」的取值表，和 index.html 的 WHO_LABEL、侧栏「我的情况」按钮一一对应
+const WHO = new Set(['怀孕', '婴幼儿', '孩子', '老人', '35岁', '60岁', '女性']);
+const badWho = [];
 
 for (const f of bookFiles) {
   for (const line of read(join('book', f)).split(/\r?\n/)) {
@@ -64,8 +57,11 @@ for (const f of bookFiles) {
     if (/^- (来源|备注)：/.test(line)) links += (line.match(/https?:\/\//g) ?? []).length;
     const t = line.match(/<!--\s*成本标签:\s*钱=(\S+)\s+时间=(\S+)\s+毅力=(\S+)\s+收益=(\S+)\s+口径=/);
     if (t) ratio[ratioOf(W.money[t[1]] + W.time[t[2]] + W.will[t[3]], t[4])]++;
+    const w = line.match(/<!--\s*成本标签:.*\s人群=(\S+)/);
+    if (w) for (const v of w[1].split(/[,+]/)) if (!WHO.has(v)) badWho.push(`${f}：${v}`);
   }
 }
+if (badWho.length) { console.error(`人群标签有不认识的值（只许 ${[...WHO].join('、')}）：\n  ${badWho.join('\n  ')}`); process.exitCode = 1; }
 
 const tagged = ratio['极高'] + ratio['高'] + ratio['一般'];
 if (tagged !== entries) console.warn(`警告：有 ${entries - tagged} 条缺成本标签，性价比三档对不上条目数`);
@@ -127,10 +123,11 @@ for (const [file, label, pattern, repl] of EDITS) {
 }
 
 if (CHECK) {
-  if (stale.length === 0) {
+  if (stale.length === 0 && !badWho.length) {
     console.log('\n统计数字检查通过');
     process.exit(0);
   }
+  if (stale.length === 0) process.exit(1);   // 只有人群标签的错，上面已经报过
   console.log(`\n有 ${stale.length} 处统计数字过时。本地跑 node tools/sync-stats.mjs（顺带重出 og.png），然后提交。`);
   process.exit(1);
 }
@@ -144,6 +141,10 @@ const runTool = name => spawnSync(process.execPath, [join(ROOT, 'tools', name)],
 console.log('');
 if (runTool('check-refs.mjs') !== 0) throw new Error('check-refs.mjs 失败');
 console.log('提交前扫一眼 docs/引用对照.md 的 diff：条号没动而「指向的条目」变了，就是被顺延撞歪的引用。');
+
+// 最近更新：检索页的「新增」「改过」标记，工作区里没提交的改动算今天
+console.log('');
+if (runTool('updates.mjs') !== 0) throw new Error('updates.mjs 失败');
 
 // ③ 说人话检查只提示不中断：数字已经同步完了，卡在这里反而让人以为统计没更新。CI 里它会红
 console.log('');

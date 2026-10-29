@@ -55,3 +55,16 @@ export function readBook() {
   if (bookFiles.length === 0) throw new Error('README 目录里没找到 book/ 文件');
   return { readme, description, frontMd, contentsMd, bookFiles, docFiles };
 }
+
+// 性价比三档：和 index.html 的 COST_W、e.ratio 两行一致，sync-stats.mjs 每次运行都会比对一次。
+// 统计数字和 Anki 牌组的标签共用这一份。
+export const COST_W = {
+  money: { '0': 0, '少': 1, '多': 2 },
+  time: { '少': 0, '中': 1, '多': 2 },
+  will: { '否': 0, '些': 1, '是': 2 },
+};
+
+export function ratioOf(cost, level) {
+  if (level === '大') return cost === 0 ? '极高' : cost <= 2 ? '高' : '一般';
+  return level === '中' && cost === 0 ? '高' : '一般';
+}
